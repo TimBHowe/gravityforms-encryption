@@ -9,10 +9,6 @@ Author URI: http://hallme.com
 License: GPL2
 */
 
-//Security key for the gravity forms encyption plugin - Please define in the config file
-if (!defined('GF_ENCRYPT')) {
-	define('GF_ENCRYPT',  'Make a Key and do not alter');
-}
 
 function encryptData($value){
    if(!$value){return false;}
@@ -74,6 +70,7 @@ function add_encryption_tooltips($tooltips){
    return $tooltips;
 }
 
+// Encrypt and save the field
 add_filter("gform_save_field_value", "save_field_value", 10, 4);
 function save_field_value($value, $lead, $field, $form){
 	if( $field["encryptField"] ){
@@ -83,33 +80,50 @@ function save_field_value($value, $lead, $field, $form){
 	}
 }
 
-//
-add_filter("gform_get_field_value", "get_field_value", 10, 3);
-function get_field_value($value, $lead, $field){
-	if( ($field["encryptField"] ) ){
+// Decrypt and show the field
+add_filter("gform_get_input_value", "get_field_value", 10, 4);
+function get_field_value( $value, $entry, $field, $input_id ){
 
-		return decryptData($value);
-	}else{
+	// Check if the field is encrypted
+	if( $field["encryptField"] ) {
+		return decryptData( $value );
+	} else {
 		return $value;
 	}
 }
 
-add_filter("gform_entry_post_save", "post_save", 10, 2);
-function post_save($lead, $form){
-	$encrypted_field_ids = array();
-	//loop through the fields
-	foreach($form['fields'] as &$field) {
-		//find all the one that should be encrypted and collect their ids into a array
-		if($field["encryptField"]){
-			array_push($encrypted_field_ids,$field["id"]);
-		}
-	}
 
-	foreach($encrypted_field_ids as $key){
-		var_dump($lead[$key]);
-		$lead[$key] = encryptData('Encrypted Field - Please log into the site to view this data');
-		var_dump($lead[$key]);
-	}
+// Decrypt and show the field
+add_filter("gform_merge_tag_filter", "gfe_gform_merge_tag_filter", 10, 5);
+function gfe_gform_merge_tag_filter( $field_value, $merge_tag, $options, $field, $raw_field_value ){
 
-	return $lead;
+	// Check if the field is encrypted
+	global $gfe_sending_notification;
+	if( $field["encryptField"] && $gfe_sending_notification) {
+
+		return 'Encrypted Field - Please log into the site to view this data';
+
+	} else {
+		return $field_value;
+	}
+}
+
+// Checks when the notification process starts
+add_filter( 'gform_notification', 'notification_start', 10, 3 );
+function notification_start( $notification, $form, $entry ) {
+    global $gfe_sending_notification;
+
+    $gfe_sending_notification = true;
+
+    return $notification;
+}
+
+// Checks when the notification process ends
+add_filter( 'gform_enable_shortcode_notification_message', 'notification_end', 10, 3 );
+function notification_end( $bool, $form, $lead ) {
+    global $gfe_sending_notification;
+
+    $gfe_sending_notification = false;
+
+    return $bool;
 }
